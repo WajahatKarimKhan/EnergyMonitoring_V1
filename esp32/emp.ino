@@ -12,7 +12,7 @@
   ESP connects to backend WebSocket:
     wss://real-time-dashboard-backend.onrender.com/ws/stream
 */
-
+#include <ArduinoOTA.h>
 #include <WiFi.h>
 #include <WebSocketsClient.h>
 #include <ModbusMaster.h>
@@ -53,28 +53,28 @@ uint32_t PUBLISH_INTERVAL_MS = 3000;
 uint8_t MODBUS_ID = 11;
 
 // Sample register addresses (holding registers), 2 regs per float (CDAB)
-uint16_t REG_Ua       = 0x2006;
-uint16_t REG_Ia       = 0x200C;
-uint16_t REG_Pa       = 0x2014;
-uint16_t REG_Ub       = 0x2008;
-uint16_t REG_Ib       = 0x200E;
-uint16_t REG_Pb       = 0x2016;
-uint16_t REG_Uc       = 0x200A;
-uint16_t REG_Ic       = 0x2010;
-uint16_t REG_Pc       = 0x2018;
-uint16_t REG_Pt       = 0x2012;
-uint16_t REG_freq     = 0x2044;
-uint16_t REG_Et_frwrd = 0x101E;
-uint16_t REG_Ea       = 0x1020;
-uint16_t REG_Eb       = 0x1022;
-uint16_t REG_Ec       = 0x1024;
-uint16_t REG_E_net_fwd= 0x1026;
-uint16_t REG_Et_rvs   = 0x1028;
-uint16_t REG_E_net_rvs= 0x1030;
-uint16_t REG_Pft      = 0x202A;
-uint16_t REG_Pfa      = 0x202C;
-uint16_t REG_Pfb      = 0x202E;
-uint16_t REG_Pfc      = 0x2030;
+  uint16_t REG_Ua       = 0x2006;
+  uint16_t REG_Ia       = 0x200C;
+  uint16_t REG_Pa       = 0x2014;
+  uint16_t REG_Ub       = 0x2008;
+  uint16_t REG_Ib       = 0x200E;
+  uint16_t REG_Pb       = 0x2016;
+  uint16_t REG_Uc       = 0x200A;
+  uint16_t REG_Ic       = 0x2010;
+  uint16_t REG_Pc       = 0x2018;
+  uint16_t REG_Pt       = 0x2012;
+  uint16_t REG_freq     = 0x2044;
+  uint16_t REG_Et_frwrd = 0x101E;
+  uint16_t REG_Ea       = 0x1020;
+  uint16_t REG_Eb       = 0x1022;
+  uint16_t REG_Ec       = 0x1024;
+  uint16_t REG_E_net_fwd= 0x1026;
+  uint16_t REG_Et_rvs   = 0x1028;
+  uint16_t REG_E_net_rvs= 0x1030;
+  uint16_t REG_Pft      = 0x202A;
+  uint16_t REG_Pfa      = 0x202C;
+  uint16_t REG_Pfb      = 0x202E;
+  uint16_t REG_Pfc      = 0x2030;
 
 // ===================== GLOBALS ========================
 ModbusMaster node;
@@ -202,13 +202,47 @@ void setup() {
 
   // WiFi + NTP
   connectWiFi();
-  
+  // ======================= OTA SETUP ========================
+  // Optional: Set a hostname for easier identification in Arduino IDE
+  ArduinoOTA.setHostname("esp32-modbus-energy-meter");
+
+  // Optional: Set a password for security
+  // ArduinoOTA.setPassword("your_secure_password");
+
+  // --- OTA Event Handlers (for debugging in Serial Monitor) ---
+  ArduinoOTA.onStart([]() {
+    String type;
+    if (ArduinoOTA.getCommand() == U_FLASH)
+      type = "sketch";
+    else // U_SPIFFS
+      type = "filesystem";
+    Serial.println("[OTA] Start updating " + type);
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\n[OTA] End");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("[OTA] Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("[OTA] Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+  });
+
+  ArduinoOTA.begin();
+  Serial.println("[OTA] Ready");  
+  //==============
   // WebSocket
   connectWebSocket();
 }
 
 // ======================== LOOP ========================
 void loop() {
+  ArduinoOTA.handle();
   // Check for scheduled reboot
   if (millis() > REBOOT_INTERVAL_MS) {
     Serial.println("[System] Performing scheduled 10-minute reboot.");
